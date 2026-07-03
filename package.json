@@ -1,0 +1,19 @@
+{
+  "name": "telegram-agent",
+  "module": "server.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "bun test --isolate",
+    "start": "bun server.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2"
+  }
+}
