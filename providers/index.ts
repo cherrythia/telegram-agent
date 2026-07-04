@@ -32,8 +32,16 @@ const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 
 let cached: { key: string; provider: Provider } | null = null;
 
-export function getProvider(): Provider {
-  const name = (process.env.LLM_PROVIDER ?? "anthropic").toLowerCase();
+export function availableProviders(): string[] {
+  return ["anthropic", ...Object.keys(OPENAI_COMPAT)].filter((name) =>
+    name === "anthropic"
+      ? Boolean(process.env.ANTHROPIC_API_KEY)
+      : Boolean(process.env[OPENAI_COMPAT[name]!.keyEnv])
+  );
+}
+
+export function getProvider(overrideName?: string): Provider {
+  const name = (overrideName ?? process.env.LLM_PROVIDER ?? "anthropic").toLowerCase();
   const model = process.env.LLM_MODEL;
   const cacheKey = `${name}:${model ?? ""}`;
   if (cached?.key === cacheKey) return cached.provider;

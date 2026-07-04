@@ -1,7 +1,14 @@
 import { readSkill, listSkills } from "./tools/run_skill";
 import { readContext, logDecision, saveNote, listContextFiles } from "./tools/context_tools";
 import { getProvider } from "./providers";
-import type { AgentMessage, ToolDef } from "./providers";
+import type { AgentMessage, Provider, ToolDef } from "./providers";
+import { getSelectedProvider } from "./lib/model_config";
+
+// The /model switcher persists a provider choice in the context repo; it wins
+// over the LLM_PROVIDER env default when set and valid.
+async function resolveProvider(): Promise<Provider> {
+  return getProvider((await getSelectedProvider()) ?? undefined);
+}
 
 const SYSTEM_PROMPT = `You are Terry's personal AI assistant, reachable via Telegram.
 Terry is a full-time software engineer upskilling in SE and AI, targeting a new job by September 2026.
@@ -93,7 +100,7 @@ async function executeTool(
 }
 
 async function runToolLoop(text: string): Promise<string> {
-  const provider = getProvider();
+  const provider = await resolveProvider();
   const messages: AgentMessage[] = [{ role: "user", text }];
 
   for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
@@ -136,7 +143,7 @@ export async function processMessage(text: string): Promise<string> {
       return `Unknown skill "/${skillName}". Available:\n${skills.map((s) => `/${s}`).join(", ")}`;
     }
 
-    const turn = await getProvider().complete({
+    const turn = await (await resolveProvider()).complete({
       system: SYSTEM_PROMPT,
       messages: [
         {

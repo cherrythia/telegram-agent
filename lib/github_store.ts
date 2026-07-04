@@ -87,6 +87,29 @@ export async function appendToRepoFile(
   cache.set(path, { content: updated, fetchedAt: Date.now() });
 }
 
+export async function writeRepoFile(
+  path: string,
+  content: string,
+  commitMessage: string
+): Promise<void> {
+  // Bypass the cache: an overwrite needs the current sha; a 404 means create
+  const existing = await fetchContents(path);
+
+  const res = await fetch(`${API_BASE}/repos/${repo()}/contents/${path}`, {
+    method: "PUT",
+    headers: { ...headers(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: commitMessage,
+      content: Buffer.from(content, "utf-8").toString("base64"),
+      ...(existing ? { sha: existing.sha } : {}),
+      branch: branch(),
+    }),
+  });
+  if (!res.ok) throw new Error(`GitHub commit failed for ${path}: ${res.status}`);
+
+  cache.set(path, { content, fetchedAt: Date.now() });
+}
+
 export function clearCache(): void {
   cache.clear();
 }

@@ -33,6 +33,13 @@ mock.module("./tools/context_tools", () => ({
   listContextFiles: () => ["context/priorities.md", "decisions/log.md"],
 }));
 
+const mockGetSelectedProvider = mock((): Promise<string | null> => Promise.resolve(null));
+
+mock.module("./lib/model_config", () => ({
+  getSelectedProvider: mockGetSelectedProvider,
+  setSelectedProvider: mock(() => Promise.resolve()),
+}));
+
 // Cache-busted import: server.test.ts registers mock.module("./agent"), and Bun
 // module mocks are process-global across test files — a plain import here would
 // receive that mock when the full suite runs.
@@ -43,6 +50,7 @@ beforeEach(() => {
   mockReadContext.mockClear();
   mockLogDecision.mockClear();
   mockSaveNote.mockClear();
+  mockGetSelectedProvider.mockImplementation(() => Promise.resolve(null));
   mockCreate.mockImplementation(() =>
     Promise.resolve({
       content: [{ type: "text", text: "Mock Claude response" }],
@@ -256,6 +264,23 @@ test("processMessage: unknown tool name from the model doesn't crash the loop", 
 
   const result = await processMessage("Delete everything");
   expect(result).toBe("I can't do that.");
+});
+
+test("processMessage: routes the LLM call through the persisted provider override", async () => {
+  const originalFetch = globalThis.fetch;
+  process.env.OPENAI_API_KEY = "o-key";
+  mockGetSelectedProvider.mockImplementation(() => Promise.resolve("openai"));
+  globalThis.fetch = (async () =>
+    Response.json({ choices: [{ message: { content: "From GPT" } }] })) as unknown as typeof fetch;
+
+  try {
+    const result = await processMessage("What should I work on today?");
+    expect(result).toBe("From GPT");
+    expect(mockCreate).not.toHaveBeenCalled();
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.OPENAI_API_KEY;
+  }
 });
 
 test("processMessage: caps the tool-use loop instead of looping forever", async () => {

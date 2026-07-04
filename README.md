@@ -43,7 +43,8 @@ context repo with the expected layout (`context/*.md`, `decisions/log.md`,
    401) → parseable JSON (else swallow with 200 so Telegram doesn't
    retry-loop) → not a duplicate `update_id` (Telegram re-delivers updates it
    thinks failed) → sender in `ALLOWED_CHAT_IDS` (else silently dropped).
-4. **`agent.ts` dispatches** on the message shape:
+4. **`agent.ts` dispatches** on the message shape (`server.ts` first handles
+   the transport-level `/model` command and its button callbacks — see step 5):
    - `/skills` → lists skill directories from the repo.
    - `/audit`, `/level-up`, `/onboard` → fetches that skill's `SKILL.md` and
      sends it to the LLM as a one-shot "execute this" prompt.
@@ -62,8 +63,14 @@ context repo with the expected layout (`context/*.md`, `decisions/log.md`,
 5. **The provider layer** (`providers/`) makes step 4 model-agnostic.
    `agent.ts` speaks a generic format (messages, tool calls, tool results);
    the selected provider translates to Anthropic's wire format or OpenAI-style
-   function calling. `LLM_PROVIDER` / `LLM_MODEL` env vars pick the backend —
-   switching models is a redeploy flag, not a code change.
+   function calling. `LLM_PROVIDER` / `LLM_MODEL` env vars pick the default
+   backend, and **`/model` switches it live from the chat**: the bot replies
+   with an inline keyboard of every provider whose API key is configured;
+   tapping a button persists the choice to `config/llm-provider.txt` in the
+   context repo (a real commit — provider switches have git history, and the
+   choice survives scale-to-zero). Callback taps go through the same chat-ID
+   allowlist as messages, and the tapped value is only accepted on an exact
+   match against the configured provider list.
 6. **Storage goes through GitHub** because containers are disposable — local
    disk vanishes at scale-to-zero. Reads hit the contents API with a 60s
    cache, so pushing to `main` updates the bot's knowledge with no redeploy.

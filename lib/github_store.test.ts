@@ -1,5 +1,5 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
-import { readRepoFile, listRepoDir, appendToRepoFile, clearCache } from "./github_store";
+import { readRepoFile, listRepoDir, appendToRepoFile, writeRepoFile, clearCache } from "./github_store";
 
 const originalFetch = globalThis.fetch;
 let fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
@@ -102,6 +102,56 @@ test("appendToRepoFile: throws when the file doesn't exist", async () => {
   expect(
     appendToRepoFile("decisions/missing.md", "x", "msg")
   ).rejects.toThrow("not found");
+});
+
+test("writeRepoFile: creates a new file (PUT without sha) when the path 404s", async () => {
+  mockFetch((url, init) => {
+    if (init?.method === "PUT") return Response.json({ ok: true });
+    return new Response("Not Found", { status: 404 });
+  });
+
+  await writeRepoFile("config/llm-provider.txt", "openai\n", "chore: switch LLM provider to openai");
+
+  const put = fetchCalls.find((c) => c.init?.method === "PUT");
+  expect(put).toBeDefined();
+  const body = JSON.parse(String(put!.init!.body));
+  expect(body.sha).toBeUndefined();
+  expect(body.message).toBe("chore: switch LLM provider to openai");
+  expect(Buffer.from(body.content, "base64").toString("utf-8")).toBe("openai\n");
+});
+
+test("writeRepoFile: overwrites an existing file using its current sha", async () => {
+  mockFetch((url, init) => {
+    if (init?.method === "PUT") return Response.json({ ok: true });
+    return Response.json({ content: b64("anthropic\n"), sha: "sha-old" });
+  });
+
+  await writeRepoFile("config/llm-provider.txt", "openai\n", "msg");
+
+  const put = fetchCalls.find((c) => c.init?.method === "PUT");
+  const body = JSON.parse(String(put!.init!.body));
+  expect(body.sha).toBe("sha-old");
+  expect(Buffer.from(body.content, "base64").toString("utf-8")).toBe("openai\n");
+});
+
+test("writeRepoFile: subsequent reads are served the written content from cache", async () => {
+  mockFetch((url, init) => {
+    if (init?.method === "PUT") return Response.json({ ok: true });
+    return Response.json({ content: b64("anthropic\n"), sha: "sha-old" });
+  });
+
+  await writeRepoFile("config/llm-provider.txt", "openai\n", "msg");
+  const readsBefore = fetchCalls.length;
+  expect(await readRepoFile("config/llm-provider.txt")).toBe("openai\n");
+  expect(fetchCalls.length).toBe(readsBefore);
+});
+
+test("writeRepoFile: throws on commit failure", async () => {
+  mockFetch((url, init) => {
+    if (init?.method === "PUT") return new Response("Conflict", { status: 409 });
+    return new Response("Not Found", { status: 404 });
+  });
+  expect(writeRepoFile("config/llm-provider.txt", "x", "msg")).rejects.toThrow("409");
 });
 
 test("appendToRepoFile: throws on commit failure", async () => {

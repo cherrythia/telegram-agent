@@ -1,8 +1,10 @@
 import { test, expect, beforeEach, afterEach } from "bun:test";
 import { OpenAICompatibleProvider } from "./openai_compatible";
-import { getProvider } from "./index";
+import { getProvider, availableProviders } from "./index";
 
 const originalFetch = globalThis.fetch;
+const KEY_ENVS = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"];
+const originalKeys = Object.fromEntries(KEY_ENVS.map((k) => [k, process.env[k]]));
 
 beforeEach(() => {
   delete process.env.LLM_PROVIDER;
@@ -13,6 +15,10 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
   delete process.env.LLM_PROVIDER;
   delete process.env.LLM_MODEL;
+  for (const k of KEY_ENVS) {
+    if (originalKeys[k] === undefined) delete process.env[k];
+    else process.env[k] = originalKeys[k];
+  }
 });
 
 function mockCompletionResponse(message: object) {
@@ -45,6 +51,26 @@ test("getProvider: builds an OpenAI-compatible provider for openai", () => {
   process.env.LLM_PROVIDER = "openai";
   process.env.OPENAI_API_KEY = "test-key";
   expect(getProvider().constructor.name).toBe("OpenAICompatibleProvider");
+});
+
+test("availableProviders: lists only providers whose API key env var is set", () => {
+  process.env.ANTHROPIC_API_KEY = "a-key";
+  process.env.OPENAI_API_KEY = "o-key";
+  delete process.env.OPENROUTER_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  expect(availableProviders()).toEqual(["anthropic", "openai"]);
+});
+
+test("availableProviders: empty when no keys are configured", () => {
+  for (const k of KEY_ENVS) delete process.env[k];
+  expect(availableProviders()).toEqual([]);
+});
+
+test("getProvider: an explicit override beats the LLM_PROVIDER env var", () => {
+  process.env.LLM_PROVIDER = "anthropic";
+  process.env.ANTHROPIC_API_KEY = "a-key";
+  process.env.OPENAI_API_KEY = "o-key";
+  expect(getProvider("openai").constructor.name).toBe("OpenAICompatibleProvider");
 });
 
 test("OpenAICompatibleProvider: sends system prompt, model, and user message", async () => {

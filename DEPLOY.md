@@ -84,7 +84,11 @@ gcloud run services update telegram-agent --region asia-southeast1 \
 
 Supported: `anthropic` (default, `claude-sonnet-4-6`), `openai` (`gpt-4o-mini`),
 `openrouter` (`openai/gpt-4o-mini`), `gemini` (`gemini-2.0-flash`). Override the
-model with `LLM_MODEL`.
+model with `LLM_MODEL` — but note `LLM_MODEL` applies to whichever provider is
+active, and the `/model` chat command can switch providers at runtime. If you
+pin a provider-specific model id via `LLM_MODEL`, switching to another provider
+via `/model` will fail until it's unset; leave `LLM_MODEL` unset when using the
+in-chat switcher.
 
 ## Notes
 
