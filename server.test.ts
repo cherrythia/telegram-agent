@@ -135,6 +135,18 @@ test("/model: replies with an inline keyboard of available providers, not the ag
   ]);
 });
 
+test("/model@botname: group-chat command syntax still triggers the keyboard", async () => {
+  const res = await handleWebhook(makeRequest(makeUpdate("/model@superman_aios_bot")));
+  expect(res.status).toBe(200);
+  expect(mockProcessMessage).not.toHaveBeenCalled();
+  expect(mockSendMessage).toHaveBeenCalledTimes(1);
+});
+
+test("/skills@botname: group-chat command syntax reaches the agent as a plain command", async () => {
+  await handleWebhook(makeRequest(makeUpdate("/skills@superman_aios_bot")));
+  expect(mockProcessMessage).toHaveBeenCalledWith("/skills");
+});
+
 test("/model: marks the persisted provider as current when one is set", async () => {
   mockGetSelectedProvider.mockImplementation(() => Promise.resolve("openai"));
   await handleWebhook(makeRequest(makeUpdate("/model")));

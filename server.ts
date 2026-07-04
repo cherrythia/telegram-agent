@@ -1,4 +1,4 @@
-import { validateWebhookSecret, isAllowedSender } from "./lib/validation";
+import { validateWebhookSecret, isAllowedSender, stripBotMention } from "./lib/validation";
 import { processMessage } from "./agent";
 import { sendMessage, answerCallbackQuery, editMessageText } from "./tools/reply";
 import { getSelectedProvider, setSelectedProvider } from "./lib/model_config";
@@ -75,7 +75,11 @@ export async function handleWebhook(req: Request): Promise<Response> {
     return new Response("OK");
   }
 
-  if (message.text.trim() === "/model") {
+  // Group chats send commands as "/cmd@botusername" — normalize once so both
+  // the /model check below and agent.ts's own command routing see a plain command
+  const text = stripBotMention(message.text.trim());
+
+  if (text === "/model") {
     try {
       await sendModelKeyboard(chatId);
     } catch (err) {
@@ -88,7 +92,7 @@ export async function handleWebhook(req: Request): Promise<Response> {
   // so background work started here would freeze. The Telegram reply goes out
   // via sendMessage before we acknowledge the webhook.
   try {
-    const response = await processMessage(message.text);
+    const response = await processMessage(text);
     await sendMessage(chatId, response, BOT_TOKEN);
   } catch (err) {
     console.error("Error processing message:", err);

@@ -42,7 +42,10 @@ context repo with the expected layout (`context/*.md`, `decisions/log.md`,
 3. **`server.ts` gates the request**, in order: correct webhook secret (else
    401) → parseable JSON (else swallow with 200 so Telegram doesn't
    retry-loop) → not a duplicate `update_id` (Telegram re-delivers updates it
-   thinks failed) → sender in `ALLOWED_CHAT_IDS` (else silently dropped).
+   thinks failed) → sender in `ALLOWED_CHAT_IDS` (else silently dropped). In a
+   group chat Telegram sends commands as `/cmd@botusername`;
+   `stripBotMention` normalizes this before any command matching, so `/model`
+   and skill commands work the same in a group as in a DM.
 4. **`agent.ts` dispatches** on the message shape (`server.ts` first handles
    the transport-level `/model` command and its button callbacks — see step 5):
    - `/skills` → lists skill directories from the repo.
