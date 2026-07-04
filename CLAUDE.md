@@ -25,6 +25,26 @@ architecture and `DEPLOY.md` for the deploy runbook before changing behavior.
   secrets, personal file paths, real chat IDs, or references to the owner's
   private repos. Keep the repo-local git identity (GitHub noreply email) intact.
 
+## Security review before every commit and push
+
+Consider the security impact of every change: this is a public repo for an
+internet-reachable webhook whose deployment holds credentials for Telegram,
+GitHub, and LLM providers. Before ANY `git commit` or `git push`, dispatch a
+fresh subagent (no prior conversation context) to review the pending diff and
+any new files for:
+
+- leaked secrets or tokens, including in test fixtures and docs
+- personal data: real file paths, chat IDs, email addresses, private repo names
+- weakened request gating in `server.ts` / `lib/validation.ts` (webhook secret,
+  chat-ID allowlist, `update_id` dedup)
+- expansion of the LLM's blast radius: new tools, a wider `read_context`
+  allowlist, or looser path-traversal checks in `tools/`
+- unsafe handling of untrusted input (Telegram message text, LLM tool-call
+  arguments)
+
+Only commit after the subagent reports no findings; fix anything it flags
+first.
+
 ## Testing
 
 - `bun run test` (uses `--isolate`) is the canonical run; plain `bun test` must
